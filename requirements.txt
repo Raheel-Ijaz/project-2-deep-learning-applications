@@ -1,0 +1,9 @@
+# For an NVIDIA GPU, install torch/torchvision first with:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+torch
+torchvision
+numpy
+matplotlib
+pillow
+scikit-learn
+jupyter
