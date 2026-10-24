@@ -7,3 +7,5 @@ matplotlib
 pillow
 scikit-learn
 jupyter
+pandas
+scipy
