@@ -55,16 +55,158 @@ The best epoch was chosen by validation macro-F1 (not accuracy); fine-tuning add
 3. **Human role:** the model only proposes a diagnosis; a farmer or extension worker confirms it before any treatment, and an expert checks the tomato spot diseases.
 4. **What would change my conclusions:** accuracy on real field photos, a large drop on background-removed images (shortcut confirmed), or a full-dataset leakage audit showing sibling shots across splits.
 
+---
+
+## Project 2, Week 7: Text and Multimodal AI (crop-disease domain)
+
+**Goal:** give the Week 6 leaf-disease system the ability to read: every text component gets a number, and the image model and a farmer's note are combined into one privacy-masked, explainable JSON record.
+
+- Text classifier: SMS Spam Collection (Kaggle, uciml), 5,572 texts, macro-F1 0.974 (word 1-2 grams) vs 0.982 (char 2-5 grams); spam precision/recall 0.979/0.933 (word) and 0.986/0.953 (char)
+- Top positive / negative features: call, txt, free, text, reply, uk / my, me, ok, that, it, but
+- NER on my domain (crop disease, 5 held-out sentences): out-of-the-box F1 0.562 -> with entity ruler 0.686 (provided six sentences: 0.533 -> 0.875)
+- Regex fields extracted: lot code, plot number, field area, spray dose, CNIC, mobile, amount, date, email, invoice number; false positives tested: 6 negative tests, 11/11 tests pass
+- OCR: CER raw 0.000 -> after correction rules 0.000 on the clean synthetic invoice; the three digit-confusion pairs went from 0.062 / 0.059 / 0.143 to 0.000 / 0.000 / 0.000
+- Pipeline: Week 6 image model (ResNet-18, 38 PlantVillage classes) + text evidence -> JSON record (example below)
+- Privacy: CNIC, phone, and email masked before logging and before any extraction (0 identifier digits found in the record)
+
+### Results at a glance (Week 7)
+
+| Component | Measured result |
+|---|---|
+| SMS spam, word 1-2 grams | macro-F1 0.974, spam precision 0.979, spam recall 0.933, 12,128 features |
+| SMS spam, char 2-5 grams | macro-F1 0.982, spam precision 0.986, spam recall 0.953, 36,449 features |
+| NER, provided 6 sentences | F1 0.533 -> 0.875 with 7 entity-ruler patterns |
+| NER, my crop-disease sentences 1-5 (rules written here) | F1 0.4 -> 0.941 |
+| NER, my crop-disease sentences 6-10 (held out) | F1 0.562 -> 0.686 |
+| Regex | 11/11 tests pass (6 negative tests) |
+| OCR (clean invoice) | CER 0.000 -> 0.000 |
+
+### Key findings
+- Character n-grams gave the higher macro-F1 on the same test split (0.982 vs 0.974) but needs about three times as many features (36,449 vs 12,128). Of the 13 word-model errors I judged 7 to be model errors, 5 ambiguous and 1 label error(s).
+- Some top weights are shortcuts rather than meaning: "to" and "your" are ordinary words, "call" also appears in ham ("Waiting for your call." scored 0.853 spam), and "gt"/"lt" on the ham side are HTML-escape leftovers in the dataset.
+- Out of the box spaCy labelled "Engro Fertilizers" as PERSON and did not detect "PKR 45,000" at all. Rules lifted the provided-set F1 from 0.533 to 0.875, but on held-out crop sentences only from 0.562 to 0.686, because name lists do not transfer to unseen names.
+- Regex handles formats (plot, lot, dose, phone) that NER gets wrong; the first `plot` pattern also matched inside "subplot" until I added a word boundary and required spacing.
+- OCR digit-repair rules fix letter-for-digit confusions only; they cannot repair missing or reordered text.
+- Masking is done before extraction so identifiers can never reach the evidence fields; a leftover side effect is that the `[CNIC]` placeholder is tagged ORG by NER, which I judged harmless for the decision.
+
+![Word classifier confusion matrix](images/w7_confusion_word.png)
+![OCR test images (clean and degraded invoice)](images/w7_ocr_images.png)
+
+### Example case record (identifiers masked)
+
+```json
+{
+  "image": "0051e5e8-d1c4-4a84-bf3a-a426cdad6285___RS_LB 4640.JPG",
+  "image_evidence": {
+    "top3": {
+      "Potato___Late_blight": 0.835,
+      "Tomato___Late_blight": 0.101,
+      "Tomato___Early_blight": 0.059
+    },
+    "P(diseased)": 1.0
+  },
+  "note_masked": "Farmer in Sahiwal reports brown spots spreading on tomato leaves for 3 days. Field plot 12, 2.5 acres, sprayed 250 ml/acre. Visited by Dr. Saima Noreen at NARC Islamabad on 12/09/2026. Farmer mobile [PHONE], CNIC [CNIC].",
+  "text_evidence": {
+    "entities": [
+      [
+        "Sahiwal",
+        "GPE"
+      ],
+      [
+        "3 days",
+        "DATE"
+      ],
+      [
+        "12",
+        "CARDINAL"
+      ],
+      [
+        "2.5 acres",
+        "QUANTITY"
+      ],
+      [
+        "250 ml/acre",
+        "QUANTITY"
+      ],
+      [
+        "Saima Noreen",
+        "PERSON"
+      ],
+      [
+        "NARC",
+        "ORG"
+      ],
+      [
+        "12/09/2026",
+        "DATE"
+      ],
+      [
+        "CNIC",
+        "ORG"
+      ],
+      [
+        "CNIC",
+        "ORG"
+      ]
+    ],
+    "fields": {
+      "date": [
+        "12/09/2026"
+      ],
+      "plot": [
+        "12"
+      ],
+      "area": [
+        [
+          "2.5",
+          "acres"
+        ]
+      ],
+      "dose": [
+        [
+          "250",
+          "ml",
+          "acre"
+        ]
+      ]
+    },
+    "urgent_terms": [
+      "spreading",
+      "brown spots",
+      "spots"
+    ]
+  },
+  "decision": "REFER",
+  "reasons": [
+    "image model: P(diseased) = 1.00",
+    "note mentions: spreading, brown spots, spots"
+  ],
+  "image_and_note_agree": true,
+  "disclaimer": "Decision support only; a qualified agronomist decides."
+}
+```
+
+**Limitations:** the SMS data is English, from the 2000s and small (747 spam messages), so Roman Urdu and modern scams are poorly covered; my NER gold sets are tiny (6 provided + 10 own sentences, 17 held-out entities), so a gain of a few F1 points is partly noise and the entity rules only know the names I wrote; OCR was measured on one synthetic invoice, not on real scans; the case record combines image and note with simple rules (a probability threshold and keyword list), not a learned fusion; the example leaf is the first image of its class folder, not a verified held-out test image. **Not for** automated spray or treatment decisions.
+
+### Responsibility questions (Week 7)
+1. **Who could be harmed?** A farmer whose note mentions spreading disease but whose case is marked ROUTINE; anyone whose phone number or CNIC leaks into a log; a farmer misled by a wrong entity or amount extracted from a note.
+2. **Where was it not validated?** Urdu and Roman Urdu notes, handwritten or phone-photographed invoices, other spaCy versions, and real advisory messages (the spam model was trained on SMS only).
+3. **Human role:** the record is decision support; a qualified agronomist reviews every REFER and checks any case where the image and the note disagree (for example a different crop named in the note).
+4. **What would change my conclusions:** a larger annotated set of real farmer notes, OCR error rates on real scans, or a leak found in the masked record.
+
+
 ### Files
 
 | File | Purpose |
 |---|---|
 | `Week5_Transfer_Learning.ipynb` | Week 5 notebook (Parts 1 to 7, written answers, Check Your Understanding) |
 | `Week6_Crop_Disease_Classification.ipynb` | Week 6 notebook (Parts 0 to 7, data audit, written answers, Check Your Understanding) |
-| `images/` | Week 5 figures and Week 6 figures (`w6_class_counts`, `w6_sample_grid`, `w6_closest_pairs`, `w6_learning_curve`, `w6_confusion_matrix`, `w6_gradcam`) |
+| `Week7_Text_and_Multimodal.ipynb` | Week 7 notebook (Parts 0 to 7, written answers, Check Your Understanding) |
+| `images/` | Week 5 figures, Week 6 figures (`w6_class_counts`, `w6_sample_grid`, `w6_closest_pairs`, `w6_learning_curve`, `w6_confusion_matrix`, `w6_gradcam`) and Week 7 figures (`w7_confusion_word`, `w7_ocr_images`, `invoice`, `invoice_noisy`) |
+| `week7_case_record.json` | Example masked image + text case record from Week 7 |
 | `models/resnet18_intel.pt` | Week 5 fine-tuned ResNet-18 weights (44.8 MB) |
 | `models/week6_model.pt` | Week 6 fine-tuned ResNet-18 weights, 38 leaf classes (44.9 MB) |
-| `requirements.txt` | Python packages |
+| `requirements.txt` | Python packages (add `spacy` and `easyocr` for Week 7) |
 | `data/` | Datasets (not uploaded to GitHub, see below) |
 
 ### How to run locally (Windows)
@@ -75,8 +217,11 @@ python -m venv venv
 venv\Scripts\activate
 pip install torch torchvision
 pip install numpy matplotlib pillow scikit-learn jupyter pandas scipy
+pip install spacy easyocr
+python -m spacy download en_core_web_sm
 jupyter notebook
 ```
 
 - **Week 5:** download https://www.kaggle.com/datasets/puneet6060/intel-image-classification , extract it into `data/`, open `Week5_Transfer_Learning.ipynb` and run the cells from top to bottom. With an NVIDIA GPU each epoch takes about a minute; on a CPU it takes 17 to 50 minutes.
 - **Week 6:** download https://www.kaggle.com/datasets/abdallahalidev/plantvillage-dataset , extract it so that the folder `data/plantvillage dataset/color/` exists, open `Week6_Crop_Disease_Classification.ipynb` and run the cells from top to bottom. On a CPU each epoch takes about 9 to 11 minutes with the default 8% subsample (`SUBSAMPLE_FRAC = 0.08`).
+- **Week 7:** download https://www.kaggle.com/datasets/uciml/sms-spam-collection-dataset , put `spam.csv` in `data/` (if it is missing the notebook downloads the same data from UCI), make sure `models/week6_model.pt` exists, open `Week7_Text_and_Multimodal.ipynb` and run the cells from top to bottom. The first run downloads about 100 MB of EasyOCR models, so keep the internet on.

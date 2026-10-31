@@ -1,0 +1,89 @@
+{
+  "image": "0051e5e8-d1c4-4a84-bf3a-a426cdad6285___RS_LB 4640.JPG",
+  "image_evidence": {
+    "top3": {
+      "Potato___Late_blight": 0.835,
+      "Tomato___Late_blight": 0.101,
+      "Tomato___Early_blight": 0.059
+    },
+    "P(diseased)": 1.0
+  },
+  "note_masked": "Farmer in Sahiwal reports brown spots spreading on tomato leaves for 3 days. Field plot 12, 2.5 acres, sprayed 250 ml/acre. Visited by Dr. Saima Noreen at NARC Islamabad on 12/09/2026. Farmer mobile [PHONE], CNIC [CNIC].",
+  "text_evidence": {
+    "entities": [
+      [
+        "Sahiwal",
+        "GPE"
+      ],
+      [
+        "3 days",
+        "DATE"
+      ],
+      [
+        "12",
+        "CARDINAL"
+      ],
+      [
+        "2.5 acres",
+        "QUANTITY"
+      ],
+      [
+        "250 ml/acre",
+        "QUANTITY"
+      ],
+      [
+        "Saima Noreen",
+        "PERSON"
+      ],
+      [
+        "NARC",
+        "ORG"
+      ],
+      [
+        "12/09/2026",
+        "DATE"
+      ],
+      [
+        "CNIC",
+        "ORG"
+      ],
+      [
+        "CNIC",
+        "ORG"
+      ]
+    ],
+    "fields": {
+      "date": [
+        "12/09/2026"
+      ],
+      "plot": [
+        "12"
+      ],
+      "area": [
+        [
+          "2.5",
+          "acres"
+        ]
+      ],
+      "dose": [
+        [
+          "250",
+          "ml",
+          "acre"
+        ]
+      ]
+    },
+    "urgent_terms": [
+      "spreading",
+      "brown spots",
+      "spots"
+    ]
+  },
+  "decision": "REFER",
+  "reasons": [
+    "image model: P(diseased) = 1.00",
+    "note mentions: spreading, brown spots, spots"
+  ],
+  "image_and_note_agree": true,
+  "disclaimer": "Decision support only; a qualified agronomist decides."
+}
